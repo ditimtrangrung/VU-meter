@@ -272,68 +272,87 @@ void Flash_LoadGain(void)
     }
 }
 
-/* ===================== Startup Animation - New Wave & Pulse =====================
- * Hiệu ứng khởi động mới:
- * 1. Sóng chạy từ trái sang phải
- * 2. Pulse nhịp nhàng ở giữa
- * 3. Fade in/out kết thúc
- * ========================================================================== */
+/* ===================== Startup Animation - 16 LED Full Demo =====================
+ * Hiệu ứng khởi động cho 16 LED (2 chip 74HC595):
+ * 1. Sóng chạy qua 16 LED
+ * 2. Pulse nhịp nhàng từ giữa ra ngoài
+ * 3. Fade in từ phải sang trái
+ * 4. Fade out kết thúc
+ * ============================================================================= */
 static void Startup_Effect(void)
 {
-    /* ===== Phase 1: Wave Left → Right (Sóng trái sang phải) ===== */
+    /* ===== Phase 1: Wave qua 16 LED ===== */
     for (int cycle = 0; cycle < 2; cycle++)
     {
-        /* Sóng chạy từ trái sang phải với 3 LED */
-        for (int pos = 0; pos < 8; pos++) {
-            uint8_t wave = 0;
-            for (int i = 0; i < 3 && (pos - i) >= 0; i++) {
-                wave |= (1U << (pos - i));
+        /* Sóng trái → phải (qua cả 16 LED) */
+        for (int pos = 0; pos < 16; pos++) {
+            uint8_t waveL = 0, waveR = 0;
+            
+            for (int i = 0; i < 4 && (pos - i) >= 0; i++) {
+                if ((pos - i) < 8)
+                    waveL |= (1U << (pos - i));
+                else
+                    waveR |= (1U << ((pos - i) - 8));
             }
-            HC595_Send8x2(wave, wave);
-            Delay_Ms(60);
+            
+            HC595_Send8x2(waveL, waveR);
+            Delay_Ms(50);
         }
 
-        /* Sóng chạy từ phải sang trái với 3 LED */
-        for (int pos = 7; pos >= 0; pos--) {
-            uint8_t wave = 0;
-            for (int i = 0; i < 3 && (pos + i) < 8; i++) {
-                wave |= (1U << (pos + i));
+        /* Sóng phải → trái */
+        for (int pos = 15; pos >= 0; pos--) {
+            uint8_t waveL = 0, waveR = 0;
+            
+            for (int i = 0; i < 4 && (pos + i) < 16; i++) {
+                if ((pos + i) < 8)
+                    waveL |= (1U << (pos + i));
+                else
+                    waveR |= (1U << ((pos + i) - 8));
             }
-            HC595_Send8x2(wave, wave);
-            Delay_Ms(60);
+            
+            HC595_Send8x2(waveL, waveR);
+            Delay_Ms(50);
         }
     }
 
     Delay_Ms(100);
 
-    /* ===== Phase 2: Pulse ở giữa (nhịp nhàng) ===== */
-    for (int pulse = 0; pulse < 4; pulse++)
+    /* ===== Phase 2: Pulse nhịp (fill từ giữa ra) ===== */
+    for (int pulse = 0; pulse < 3; pulse++)
     {
         HC595_Send8x2(0x00, 0x00); Delay_Ms(80);
-        HC595_Send8x2(0x18, 0x18); Delay_Ms(60);  /* 00011000 - 2 LED ở giữa */
-        HC595_Send8x2(0x3C, 0x3C); Delay_Ms(60);  /* 00111100 - 4 LED ở giữa */
-        HC595_Send8x2(0x7E, 0x7E); Delay_Ms(60);  /* 01111110 - 6 LED ở giữa */
-        HC595_Send8x2(0xFF, 0xFF); Delay_Ms(100); /* 11111111 - Full */
+        HC595_Send8x2(0x08, 0x80); Delay_Ms(60);
+        HC595_Send8x2(0x0C, 0xC0); Delay_Ms(60);
+        HC595_Send8x2(0x0E, 0xE0); Delay_Ms(60);
+        HC595_Send8x2(0x0F, 0xF0); Delay_Ms(60);
+        HC595_Send8x2(0xFF, 0xFF); Delay_Ms(100);
     }
 
     Delay_Ms(150);
 
-    /* ===== Phase 3: Fade in từ phải sang trái ===== */
-    for (int i = 1; i <= 8; i++) {
-        uint8_t pat = 0;
-        for (int b = 0; b < i; b++) pat |= (1U << (7 - b));  /* Bắt đầu từ bit 7 */
-        HC595_Send8x2(pat, pat);
-        Delay_Ms(50);
+    /* ===== Phase 3: Fill từng bit từ phải sang trái ===== */
+    uint8_t patL = 0, patR = 0;
+    for (int i = 0; i < 16; i++) {
+        if (i < 8)
+            patL |= (1U << i);
+        else
+            patR |= (1U << (i - 8));
+        
+        HC595_Send8x2(patL, patR);
+        Delay_Ms(40);
     }
 
     Delay_Ms(200);
 
-    /* ===== Phase 4: Fade out ===== */
-    for (int i = 8; i >= 1; i--) {
-        uint8_t pat = 0;
-        for (int b = 0; b < i; b++) pat |= (1U << (7 - b));
-        HC595_Send8x2(pat, pat);
-        Delay_Ms(50);
+    /* ===== Phase 4: Clear từng bit (phải sang trái) ===== */
+    for (int i = 15; i >= 0; i--) {
+        if (i < 8)
+            patL &= ~(1U << i);
+        else
+            patR &= ~(1U << (i - 8));
+        
+        HC595_Send8x2(patL, patR);
+        Delay_Ms(40);
     }
 
     HC595_Send8x2(0x00, 0x00);
